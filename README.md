@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="results/after_trained.png" alt="Fine-tuned model: detection, tracking and Kalman-filtered trajectories on aerial traffic footage" width="850">
+ Live app url: https://aerial-detection-tracking.streamlit.app/
 </p>
 
 <p align="center"><i>Output of the full pipeline on aerial traffic footage: green boxes are detections with track IDs,

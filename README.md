@@ -14,8 +14,11 @@
 </p>
 
 <p align="center">
-  <img src="results/demo.gif" alt="Demo: detection, tracking and Kalman prediction on aerial traffic footage" width="800">
+  <img src="results/after_trained.png" alt="Fine-tuned model: detection, tracking and Kalman-filtered trajectories on aerial traffic footage" width="850">
 </p>
+
+<p align="center"><i>Output of the full pipeline on aerial traffic footage: green boxes are detections with track IDs,
+blue lines are Kalman-smoothed trajectories, red dots are positions predicted by the filter when the detector missed an object.</i></p>
 
 ## Overview
 
@@ -25,18 +28,15 @@ and a custom constant-velocity **Kalman filter** smooths each track and keeps pr
 when the detector misses it. The trained model is exported to **ONNX** and benchmarked against PyTorch, and a
 **Streamlit dashboard** lets you run the whole pipeline on any uploaded video.
 
-**In the demo:** green boxes are detections with track IDs, blue lines are Kalman-smoothed trajectories,
-and red dots are positions predicted by the filter when the detector missed the object.
-
 ## Before vs. after fine-tuning
 
-The pretrained COCO model was trained on ground-level photos and misses most vehicles in a top-down view.
+The pretrained COCO model was trained on ground-level photos, so it misses most vehicles in a top-down view.
 Fine-tuning on VisDrone fixes this.
 
 | Pretrained YOLOv8n (COCO) | Fine-tuned on VisDrone |
 |:---:|:---:|
 | <img src="results/before_pretrained.png" width="480"> | <img src="results/after_trained.png" width="480"> |
-| Detects only a handful of cars | Detects most vehicles across all lanes |
+| Detects only a handful of the cars | Detects most vehicles across all lanes |
 
 ## Results
 
@@ -59,12 +59,23 @@ especially for the smallest (nano) model after a short training run.
 
 ## Dashboard
 
-Upload an aerial video, adjust the confidence threshold and Kalman max-age, and watch detection and tracking run live.
-The dashboard reports frames processed, unique objects tracked, average objects per frame, time per frame,
-per-class counts, and lets you download the annotated video.
+Upload an aerial video, adjust the confidence threshold, Kalman max-age and number of frames, and watch detection and
+tracking run live. When processing finishes, the dashboard summarises the run and lets you download the annotated video.
 
 <p align="center">
-  <img src="results/dashboard.png" alt="Streamlit dashboard screenshot" width="850">
+  <img src="results/dashboard_run.png" alt="Dashboard: live detection and tracking preview" width="850">
+</p>
+
+**Example run** (150 frames of aerial traffic footage, CPU):
+
+| Frames processed | Unique objects tracked | Avg objects / frame | Avg time / frame |
+|:---:|:---:|:---:|:---:|
+| 150 | 208 | 52.0 | 231 ms |
+
+The class breakdown shows mostly cars, plus buses, motorbikes, pedestrians, trucks and vans.
+
+<p align="center">
+  <img src="results/dashboard_stats.png" alt="Dashboard: per-frame detections and tracked objects by class" width="850">
 </p>
 
 ```bash
@@ -82,7 +93,7 @@ flowchart LR
     E --> F[Annotated video / dashboard]
 ```
 
-1. **Detection:** YOLOv8 outputs bounding boxes, classes and confidences for 10 VisDrone classes.
+1. **Detection:** YOLOv8 outputs bounding boxes, classes and confidences for the 10 VisDrone classes.
 2. **Tracking:** ByteTrack matches boxes between frames so each object keeps one ID.
 3. **State estimation:** each track's centre is modelled with a constant-velocity state `[x, y, vx, vy]`.
    - *Predict:* move the state forward with the motion model, `x = F x`, `P = F P Fᵀ + Q`.
@@ -100,7 +111,7 @@ aerial-object-detection-tracking/
 ├── export_onnx.py      # export trained weights to ONNX
 ├── benchmark.py        # PyTorch vs ONNX Runtime speed comparison
 ├── requirements.txt
-└── results/            # demo GIF and screenshots
+└── results/            # screenshots used in this README
 ```
 
 ## Getting started

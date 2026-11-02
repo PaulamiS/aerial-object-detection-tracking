@@ -1,9 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
 ultralytics
-opencv-python
+opencv-python-headless
 numpy
-onnx
-onnxruntime
-streamlit
 pandas
-
-
+streamlit

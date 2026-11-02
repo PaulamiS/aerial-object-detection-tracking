@@ -1,0 +1,9 @@
+ultralytics
+opencv-python
+numpy
+onnx
+onnxruntime
+streamlit
+pandas
+
+

@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+runs/
+*.pt
+*.onnx
+*.mp4
+!results/*.gif

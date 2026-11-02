@@ -1,43 +1,159 @@
-# Aerial Object Detection & Tracking
+<h1 align="center">Aerial Object Detection & Tracking</h1>
 
-YOLOv8 object detection on aerial imagery (VisDrone), multi-object tracking (ByteTrack),
-a custom Kalman-filter state estimator, ONNX export, and a ROS 2 detection node.
+<p align="center">
+  YOLOv8 detection on aerial imagery (VisDrone) &middot; ByteTrack multi-object tracking &middot;
+  custom Kalman-filter state estimation &middot; ONNX export &middot; Streamlit dashboard
+</p>
 
-## Pipeline
-video -> YOLOv8 detector -> ByteTrack IDs -> Kalman filter (smoothing + prediction through missed detections) -> annotated video / ROS 2 `/detections`
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10%2B-blue" alt="Python">
+  <img src="https://img.shields.io/badge/PyTorch-YOLOv8-red" alt="PyTorch">
+  <img src="https://img.shields.io/badge/OpenCV-computer%20vision-green" alt="OpenCV">
+  <img src="https://img.shields.io/badge/ONNX-Runtime-lightgrey" alt="ONNX">
+  <img src="https://img.shields.io/badge/Streamlit-dashboard-ff4b4b" alt="Streamlit">
+</p>
+
+<p align="center">
+  <img src="results/demo.gif" alt="Demo: detection, tracking and Kalman prediction on aerial traffic footage" width="800">
+</p>
+
+## Overview
+
+An end-to-end computer vision pipeline for aerial video. A YOLOv8 detector is fine-tuned on the
+[VisDrone](https://github.com/VisDrone/VisDrone-Dataset) dataset, ByteTrack assigns persistent IDs to objects across frames,
+and a custom constant-velocity **Kalman filter** smooths each track and keeps predicting an object's position
+when the detector misses it. The trained model is exported to **ONNX** and benchmarked against PyTorch, and a
+**Streamlit dashboard** lets you run the whole pipeline on any uploaded video.
+
+**In the demo:** green boxes are detections with track IDs, blue lines are Kalman-smoothed trajectories,
+and red dots are positions predicted by the filter when the detector missed the object.
+
+## Before vs. after fine-tuning
+
+The pretrained COCO model was trained on ground-level photos and misses most vehicles in a top-down view.
+Fine-tuning on VisDrone fixes this.
+
+| Pretrained YOLOv8n (COCO) | Fine-tuned on VisDrone |
+|:---:|:---:|
+| <img src="results/before_pretrained.png" width="480"> | <img src="results/after_trained.png" width="480"> |
+| Detects only a handful of cars | Detects most vehicles across all lanes |
 
 ## Results
-> Fill these in from your own runs before publishing.
+
+**Detection accuracy** (VisDrone validation set, YOLOv8n fine-tuned)
 
 | Metric | Value |
 |---|---|
-| mAP50 (VisDrone val) | XX |
-| mAP50-95 | XX |
-| PyTorch inference | XX ms/frame |
-| ONNX inference | XX ms/frame |
+| mAP50 | **28.9%** |
+| mAP50-95 | **16.1%** |
 
-![demo](results/demo.gif)
+**Inference speed** (Intel Core i3-1125G4 CPU, end-to-end per frame, averaged over 100 frames)
 
-## Setup
+| Model | ms / frame |
+|---|---|
+| PyTorch (`.pt`) | 319.8 |
+| ONNX Runtime (`.onnx`) | **202.9** (~37% faster) |
+
+VisDrone is a hard benchmark: objects are tiny, crowded and often in shadow, so absolute mAP values are modest,
+especially for the smallest (nano) model after a short training run.
+
+## Dashboard
+
+Upload an aerial video, adjust the confidence threshold and Kalman max-age, and watch detection and tracking run live.
+The dashboard reports frames processed, unique objects tracked, average objects per frame, time per frame,
+per-class counts, and lets you download the annotated video.
+
+<p align="center">
+  <img src="results/dashboard.png" alt="Streamlit dashboard screenshot" width="850">
+</p>
+
 ```bash
-python -m venv venv && source venv/bin/activate
+streamlit run app.py
+```
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Video frame] --> B[YOLOv8 detector]
+    B --> C[ByteTrack<br/>persistent IDs]
+    C --> D[Kalman filter<br/>per track]
+    D --> E[Smoothed trajectory<br/>+ predicted position]
+    E --> F[Annotated video / dashboard]
+```
+
+1. **Detection:** YOLOv8 outputs bounding boxes, classes and confidences for 10 VisDrone classes.
+2. **Tracking:** ByteTrack matches boxes between frames so each object keeps one ID.
+3. **State estimation:** each track's centre is modelled with a constant-velocity state `[x, y, vx, vy]`.
+   - *Predict:* move the state forward with the motion model, `x = F x`, `P = F P Fᵀ + Q`.
+   - *Update:* correct it with the detector's measurement, `K = P Hᵀ (H P Hᵀ + R)⁻¹`.
+   - When the detector misses an object, only the predict step runs for up to `--max-age` frames (red dots).
+
+## Project structure
+
+```
+aerial-object-detection-tracking/
+├── app.py              # Streamlit dashboard
+├── detect_track.py     # detection + tracking + Kalman filter on a video
+├── kalman.py           # constant-velocity Kalman filter (NumPy)
+├── train.py            # fine-tune YOLOv8 on VisDrone (run on a GPU)
+├── export_onnx.py      # export trained weights to ONNX
+├── benchmark.py        # PyTorch vs ONNX Runtime speed comparison
+├── requirements.txt
+└── results/            # demo GIF and screenshots
+```
+
+## Getting started
+
+```bash
+git clone https://github.com/PaulamiS/aerial-object-detection-tracking.git
+cd aerial-object-detection-tracking
+python -m venv venv
+venv\Scripts\activate          # Windows  (Mac/Linux: source venv/bin/activate)
 pip install -r requirements.txt
 ```
 
-## Usage
+Model weights and videos are not stored in the repo. Train your own `best.pt` (below) and place it in the project folder.
+
+### Train (use a GPU, e.g. free Google Colab)
 ```bash
-python train.py                                   # fine-tune on VisDrone (use a GPU)
-python export_onnx.py runs/detect/train/weights/best.pt
-python detect_track.py --source video.mp4 --model best.pt
-python benchmark.py best.pt best.onnx video.mp4   # PyTorch vs ONNX speed
+python train.py        # downloads VisDrone automatically, fine-tunes YOLOv8n at 640 px
 ```
 
-## How the Kalman filter is used
-Each tracked object's centre is modelled with a constant-velocity state `[x, y, vx, vy]`.
-Every frame the filter predicts the next position and corrects it with the detector's measurement.
-When the detector misses an object, the filter keeps predicting its position for up to `--max-age`
-frames (shown as red dots), so trajectories don't break.
+### Run detection + tracking on a video
+```bash
+python detect_track.py --source video.mp4 --model best.pt --out results/output.mp4
+```
 
-## ROS 2
-`ros2_node/detector_node.py` subscribes to `/image_raw` and publishes `vision_msgs/Detection2DArray`
-on `/detections`. Run with `python3 ros2_node/detector_node.py --ros-args -p model:=best.onnx`.
+### Export to ONNX and benchmark
+```bash
+python export_onnx.py best.pt
+python benchmark.py best.pt best.onnx video.mp4
+```
+
+### Launch the dashboard
+```bash
+streamlit run app.py
+```
+
+## Known limitations
+
+- Small, fast, crowded objects cause some missed detections, especially dark vehicles in shadow.
+- Tracking can switch IDs when an object is lost for several frames in dense traffic.
+- Trained for a short run on the nano model; a larger model or more epochs would raise mAP.
+- Speed numbers are CPU-only. GPU inference would be much faster.
+
+## Future work
+
+- Train a larger model (YOLOv8s/m) for longer and compare accuracy.
+- Add TensorRT export for GPU / Jetson deployment.
+- Wrap the pipeline in a ROS 2 node for robotics integration.
+- Replace the constant-velocity model with an Extended Kalman Filter for manoeuvring objects.
+
+## Tech stack
+
+Python, PyTorch, Ultralytics YOLOv8, OpenCV, NumPy, ONNX, ONNX Runtime, Streamlit, Pandas
+
+## Author
+
+**Paulami Sahu**, B.Tech CSE, VIT &middot; [GitHub](https://github.com/PaulamiS)

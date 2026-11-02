@@ -165,6 +165,9 @@ streamlit run app.py
 
 Python, PyTorch, Ultralytics YOLOv8, OpenCV, NumPy, ONNX, ONNX Runtime, Streamlit, Pandas
 
+
+Training notebook with full output: [notebooks/train_visdrone_colab.ipynb](notebooks/train_visdrone_colab.ipynb)
+
 ## Author
 
 **Paulami Sahu**, B.Tech CSE, VIT &middot; [GitHub](https://github.com/PaulamiS)
